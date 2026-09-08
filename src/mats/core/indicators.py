@@ -97,8 +97,15 @@ class CVD:
         self.cumulative += signed
         ts = trade.ts.timestamp()
         self._points.append((ts, self.cumulative))
-        cutoff = ts - self._window_s
-        while len(self._points) > 2 and self._points[0][0] < cutoff:
+        self.tick(ts)
+
+    def tick(self, now: float) -> None:
+        """Drop points that have aged out of the window. Call from the owner's clock so
+        slope decays to 0 when the tape goes quiet, not just when a new trade arrives.
+        Keeps one anchor point at/just-before the cutoff plus everything newer.
+        """
+        cutoff = now - self._window_s
+        while len(self._points) >= 2 and self._points[1][0] <= cutoff:
             self._points.popleft()
 
     @property

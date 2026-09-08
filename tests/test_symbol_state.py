@@ -78,3 +78,16 @@ def test_tps_ratio_none_until_enough_trades() -> None:
     for i in range(5):
         s.on_trade(Trade(symbol="X", ts=_dt(BASE + i), price=1.0, qty=1.0, is_buyer_maker=False))
     assert s.tps_ratio is None
+
+
+def test_tick_ages_out_stale_trade_window() -> None:
+    s = _state()
+    for i in range(60):  # a burst of trades over 1 minute
+        s.on_trade(Trade(symbol="X", ts=_dt(BASE + i), price=1.0, qty=1.0, is_buyer_maker=False))
+    assert len(s._trade_ts_5m) == 60
+    assert s.cvd_slope > 0
+
+    # 20 minutes later the tape has gone silent — evaluate must see it as stale
+    s.tick(BASE + 1200)
+    assert len(s._trade_ts_5m) == 0
+    assert s.cvd_slope == 0.0

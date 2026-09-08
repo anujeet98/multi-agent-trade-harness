@@ -77,12 +77,24 @@ class SymbolState:
         ts = t.ts.timestamp()
         self._cvd.update(t)
         self.last_price = t.price
+        self._trade_ts_5m.append(ts)
+        self._trade_ts_4h.append(ts)
+        self._cvd_samples.append((ts, t.price, self._cvd.cumulative))
+        self.tick(ts)
+
+    def tick(self, now_ts: float) -> None:
+        """Evict time-windowed data relative to `now`, not just on the next event. The
+        scanner calls this before every evaluation so a coin whose tape went quiet stops
+        showing a stale tps_ratio / CVD slope and correctly drops out of the candidates.
+        """
         for dq, window in ((self._trade_ts_5m, 300.0), (self._trade_ts_4h, 14_400.0)):
-            dq.append(ts)
-            cutoff = ts - window
+            cutoff = now_ts - window
             while dq and dq[0] < cutoff:
                 dq.popleft()
-        self._cvd_samples.append((ts, t.price, self._cvd.cumulative))
+        self._cvd.tick(now_ts)
+        cutoff = now_ts - 2 * self._p.cvd_window_s
+        while self._cvd_samples and self._cvd_samples[0][0] < cutoff:
+            self._cvd_samples.popleft()
 
     def on_mark(self, m: MarkPrice) -> None:
         self.mark_price = m.mark_price

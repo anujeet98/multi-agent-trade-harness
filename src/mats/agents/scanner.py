@@ -171,6 +171,7 @@ class Scanner:
 
         eligible: list[SymbolState] = []
         for st in self._states.values():
+            st.tick(now_ts)  # age out stale trade/CVD windows before judging
             ok, _ = check_eligible(st, self._p, now_ts)
             if ok:
                 eligible.append(st)

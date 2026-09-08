@@ -86,6 +86,15 @@ def test_rsi_bounds_and_warmup() -> None:
     assert rsi2.value is not None and rsi2.value < 5.0
 
 
+def test_cvd_tick_decays_slope_when_tape_quiet() -> None:
+    cvd = CVD(slope_window_s=300)
+    for i in range(10):
+        cvd.update(_trade(i * 10, 100, 1.0, buyer_maker=False))
+    assert cvd.slope > 0
+    cvd.tick(T0.timestamp() + 100_000)  # long after every point aged out
+    assert cvd.slope == 0.0
+
+
 def test_atr_true_range() -> None:
     atr = ATR(period=2)
     atr.update(_candle(10, 12, 9, 11))  # tr = 3
