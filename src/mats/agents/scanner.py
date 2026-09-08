@@ -9,24 +9,15 @@ intended order size and is enforced by the Observer's self-impact guard (S2/S3).
 
 from __future__ import annotations
 
-import asyncio
 import statistics
 from datetime import UTC, datetime
 
+from mats.agents.market_state import MarketStateStore
 from mats.agents.symbol_state import SymbolState
 from mats.config import StrategyParams
 from mats.core.bus import EventBus
 from mats.core.clock import Clock
-from mats.core.models import (
-    Candidate,
-    Candle,
-    InstrumentStats,
-    Liquidation,
-    MarkPrice,
-    OrderBook,
-    Side,
-    Trade,
-)
+from mats.core.models import Candidate, Side
 
 _FUNDING_BLACKOUT_S = 120.0
 
@@ -121,56 +112,29 @@ def _zscore_hotness(
 
 
 class Scanner:
-    def __init__(self, bus: EventBus, params: StrategyParams, clock: Clock) -> None:
+    def __init__(
+        self, bus: EventBus, params: StrategyParams, clock: Clock, store: MarketStateStore
+    ) -> None:
         self._bus = bus
         self._p = params
         self._clock = clock
-        self._states: dict[str, SymbolState] = {}
-        self._sub = bus.subscribe(Candle, Trade, MarkPrice, InstrumentStats, OrderBook, Liquidation)
-
-    def _state(self, symbol: str) -> SymbolState:
-        st = self._states.get(symbol)
-        if st is None:
-            st = SymbolState(symbol, self._p)
-            self._states[symbol] = st
-        return st
-
-    def _ingest(self, event: object) -> None:
-        if isinstance(event, Candle):
-            self._state(event.symbol).on_candle(event)
-        elif isinstance(event, Trade):
-            self._state(event.symbol).on_trade(event)
-        elif isinstance(event, MarkPrice):
-            self._state(event.symbol).on_mark(event)
-        elif isinstance(event, InstrumentStats):
-            self._state(event.symbol).on_stats(event)
-        elif isinstance(event, OrderBook):
-            self._state(event.symbol).on_book(event)
-        elif isinstance(event, Liquidation):
-            self._state(event.symbol).on_liquidation(event)
-
-    async def _consume(self) -> None:
-        async for event in self._sub:
-            self._ingest(event)
+        self._store = store
 
     async def run(self) -> None:
-        consumer = asyncio.create_task(self._consume())
-        try:
-            while True:
-                await self._clock.sleep(self._p.scan_interval_s)
-                for cand in self.evaluate(self._clock.now()):
-                    self._bus.publish(cand)
-        finally:
-            consumer.cancel()
+        while True:
+            await self._clock.sleep(self._p.scan_interval_s)
+            for cand in self.evaluate(self._clock.now()):
+                self._bus.publish(cand)
 
     # --- pure evaluation (unit-tested directly) --------------------------
 
     def evaluate(self, now_ts: float) -> list[Candidate]:
-        btc = self._states.get(self._p.btc_symbol)
+        states = [self._store.state(s) for s in self._store.symbols()]
+        btc = self._store.get(self._p.btc_symbol)
         btc_ret_15m = btc.ret_15m if btc else None
 
         eligible: list[SymbolState] = []
-        for st in self._states.values():
+        for st in states:
             st.tick(now_ts)  # age out stale trade/CVD windows before judging
             ok, _ = check_eligible(st, self._p, now_ts)
             if ok:

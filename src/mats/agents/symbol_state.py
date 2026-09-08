@@ -7,14 +7,17 @@ until the relevant indicator has warmed up — callers must treat ``None`` as "n
 
 from __future__ import annotations
 
+import statistics
 from collections import deque
 
 from mats.config import StrategyParams
 from mats.core.indicators import (
     ATR,
     CVD,
+    EMA,
     RSI,
     RVOL,
+    AnchoredVWAP,
     OpenInterestDelta,
     book_imbalance,
     spread_pct,
@@ -29,10 +32,19 @@ class SymbolState:
 
         # 1m candle history: (open_time_epoch_s, close)
         self._closes: deque[tuple[float, float]] = deque(maxlen=180)  # ~3h of 1m
+        self._candles_1m: deque[Candle] = deque(maxlen=180)
         self._atr = ATR(period=14)
         self._atr_hist: deque[tuple[float, float]] = deque(maxlen=180)  # (ts, atr)
         self._rsi5 = RSI(period=14)
         self._last_5m_bucket: int | None = None
+
+        # 1m-timeframe series for the Observer (Layer 2)
+        self._ema20 = EMA(period=20)
+        self._ema20_hist: deque[float] = deque(maxlen=10)
+        self._rsi1m = RSI(period=14)
+        self._avwap = AnchoredVWAP()  # re-anchored on each EMA20 cross (move-origin proxy)
+        self._close_above_ema: bool | None = None
+        self._vwap15: deque[tuple[float, float, float]] = deque()  # (ts, price, volume)
 
         self._rvol = RVOL(short_s=300.0, long_s=params.rvol_baseline_window_s)
         self._rvol15 = RVOL(short_s=900.0, long_s=params.rvol_baseline_window_s)
@@ -42,6 +54,7 @@ class SymbolState:
         self._trade_ts_5m: deque[float] = deque()
         self._trade_ts_4h: deque[float] = deque()
         self._cvd_samples: deque[tuple[float, float, float]] = deque(maxlen=600)  # ts, price, cvd
+        self._notional_60s: deque[tuple[float, float]] = deque()  # (ts, price*qty)
 
         # derivatives / snapshot
         self._oi = OpenInterestDelta(window_s=params.oi_delta_window_s)
@@ -53,6 +66,7 @@ class SymbolState:
         self.age_days: float | None = None
 
         self._book: OrderBook | None = None
+        self._spread_hist: deque[float] = deque(maxlen=200)
         self.last_liquidation: Liquidation | None = None
 
     # --- ingest -------------------------------------------------------------
@@ -62,6 +76,7 @@ class SymbolState:
             return
         ts = c.open_time.timestamp()
         self._closes.append((ts, c.close))
+        self._candles_1m.append(c)
         self._atr.update(c)
         if self._atr.value is not None:
             self._atr_hist.append((ts, self._atr.value))
@@ -72,6 +87,18 @@ class SymbolState:
             self._rsi5.update(c.close)
             self._last_5m_bucket = bucket
 
+        ema = self._ema20.update(c.close)
+        self._ema20_hist.append(ema)
+        self._rsi1m.update(c.close)
+        above = c.close >= ema
+        if self._close_above_ema is not None and above != self._close_above_ema:
+            self._avwap.reset()  # price crossed EMA20 -> a new move leg is starting
+        self._close_above_ema = above
+        self._avwap.update(c.close, c.volume)
+        self._vwap15.append((ts, c.close, c.volume))
+        while self._vwap15 and self._vwap15[0][0] < ts - 900.0:
+            self._vwap15.popleft()
+
     def on_trade(self, t: Trade) -> None:
         ts = t.ts.timestamp()
         self._cvd.update(t)
@@ -79,6 +106,7 @@ class SymbolState:
         self._trade_ts_5m.append(ts)
         self._trade_ts_4h.append(ts)
         self._cvd_samples.append((ts, t.price, self._cvd.cumulative))
+        self._notional_60s.append((ts, t.price * t.qty))
         self.tick(ts)
 
     def tick(self, now_ts: float) -> None:
@@ -94,6 +122,8 @@ class SymbolState:
         cutoff = now_ts - 2 * self._p.cvd_window_s
         while self._cvd_samples and self._cvd_samples[0][0] < cutoff:
             self._cvd_samples.popleft()
+        while self._notional_60s and self._notional_60s[0][0] < now_ts - 60.0:
+            self._notional_60s.popleft()
 
     def on_mark(self, m: MarkPrice) -> None:
         self.mark_price = m.mark_price
@@ -111,6 +141,9 @@ class SymbolState:
 
     def on_book(self, b: OrderBook) -> None:
         self._book = b
+        sp = spread_pct(b)
+        if sp is not None:
+            self._spread_hist.append(sp)
 
     def on_liquidation(self, liq: Liquidation) -> None:
         self.last_liquidation = liq
@@ -217,3 +250,54 @@ class SymbolState:
         if self.last_price and self.mark_price and self.last_price > 0:
             return abs(self.mark_price - self.last_price) / self.last_price * 100.0
         return None
+
+    # --- 1m-timeframe views for the Observer -----------------------------
+
+    @property
+    def close_1m(self) -> float | None:
+        return self._candles_1m[-1].close if self._candles_1m else None
+
+    @property
+    def ema20_1m(self) -> float | None:
+        return self._ema20.value
+
+    @property
+    def ema20_1m_rising(self) -> bool | None:
+        if len(self._ema20_hist) < 4:
+            return None
+        return self._ema20_hist[-1] > self._ema20_hist[-4]
+
+    @property
+    def rsi_1m(self) -> float | None:
+        return self._rsi1m.value
+
+    @property
+    def atr_1m(self) -> float | None:
+        return self._atr.value
+
+    @property
+    def anchored_vwap(self) -> float | None:
+        """VWAP since the last EMA20 cross — a proxy for 'since the move began'."""
+        return self._avwap.value
+
+    @property
+    def vwap_15m(self) -> float | None:
+        pv = sum(px * v for _, px, v in self._vwap15)
+        vol = sum(v for _, _, v in self._vwap15)
+        return pv / vol if vol > 0 else None
+
+    def recent_candles_1m(self, n: int) -> list[Candle]:
+        return list(self._candles_1m)[-n:]
+
+    @property
+    def order_book(self) -> OrderBook | None:
+        return self._book
+
+    @property
+    def traded_notional_60s(self) -> float:
+        return sum(n for _, n in self._notional_60s)
+
+    def spread_median(self) -> float | None:
+        if len(self._spread_hist) < 10:
+            return None
+        return statistics.median(self._spread_hist)

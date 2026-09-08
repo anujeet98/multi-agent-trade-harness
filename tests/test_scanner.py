@@ -133,12 +133,13 @@ def test_e6_rejects_freshly_listed_contract() -> None:
 
 def test_scanner_evaluate_emits_and_ranks() -> None:
     p = StrategyParams()
+    from mats.agents.market_state import MarketStateStore
     from mats.core.bus import EventBus
     from mats.core.clock import SimClock
 
-    sc = Scanner(EventBus(), p, SimClock())
-    sc._states["HOTUSDT"] = build_hot_long(p, "HOTUSDT")
-    sc._states["WARMUSDT"] = build_hot_long(p, "WARMUSDT")
+    store = MarketStateStore(EventBus(), p)
+    store._states["HOTUSDT"] = build_hot_long(p, "HOTUSDT")
+    store._states["WARMUSDT"] = build_hot_long(p, "WARMUSDT")
     # a dead coin: low volume => never eligible
     dead = SymbolState("DEADUSDT", p)
     dead.on_stats(
@@ -152,8 +153,9 @@ def test_scanner_evaluate_emits_and_ranks() -> None:
             quote_volume_24h=1_000.0,
         )
     )
-    sc._states["DEADUSDT"] = dead
+    store._states["DEADUSDT"] = dead
 
+    sc = Scanner(EventBus(), p, SimClock(), store)
     cands = sc.evaluate(BASE + N * 60 + 30)
     longs = [c for c in cands if c.side is Side.LONG]
     assert {c.symbol for c in longs} == {"HOTUSDT", "WARMUSDT"}

@@ -26,8 +26,16 @@ Update this at the end of every working session. Newest status at the top.
   `agents/scanner.py` (Layer 0 `check_eligible` E1/E3-E7 + Layer 1 `_directional_checks`
   H1-H10 + z-score hotness ranking → top-5/side `Candidate`s); `feeds/pollers.py`
   (`InstrumentStatsPoller`). 44 tests, ruff+mypy clean. → PR open.
-- **Reviews so far:** #17 review-agent merged; #18 OKX-rejected merged; #15 feeds (5 findings fixed) merged.
-- **Next:** merge #4, verify CoinDCX endpoints live (#16), then issue #5 — observer agent (Layer 2).
+  **#4 merged** (E1/E6/RSI review fixes applied).
+  **#5** (`feat/5-observer`): `MarketStateStore` (shared per-symbol state + single ingest loop;
+  Scanner refactored to use it), SymbolState 1m extensions (EMA20, RSI-1m, anchored + rolling
+  15m VWAP, spread median, 60s traded notional), `agents/legs.py` (zigzag pivots + leg
+  analysis), `agents/observer.py` (Layer 2a–2f: `momentum_alive`, `room_to_run` 9-check,
+  P1/P2 patterns, book+self-impact, hard rejections R1–R7 → `TradeIntent`; async
+  `Observer`/`ObserverTask`). 56 tests, ruff+mypy clean. → PR open.
+- **Reviews so far:** #17 review-agent merged; #18 OKX merged; #15 feeds (5 fixes) merged;
+  #19 scanner (4 fixes: E1 USDT, E6 age, RSI seed, dead attr) merged.
+- **Next:** merge #5, then issue #6 — risk agent (Layer 3 sizing + Layer 4 breakers).
 - **Blocked on user:** nothing. (Later: CoinDCX read-only API key for live feed test; decision
   on Binance-vs-Bybit indicator source once we hit geo/availability reality.)
 
