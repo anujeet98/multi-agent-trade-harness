@@ -51,6 +51,18 @@ def test_rvol_flags_a_burst() -> None:
     assert rvol.value is not None and rvol.value > 3.0
 
 
+def test_rvol_is_none_during_warmup() -> None:
+    rvol = RVOL(short_s=60, long_s=600)  # warmup ~540s
+    for i in range(120):  # only 2 minutes of history
+        rvol.update(float(i), 1.0)
+    assert rvol.value is None  # not enough long-window history to trust the baseline
+    for i in range(120, 560):
+        rvol.update(float(i), 1.0)
+    # flat volume => near 1.0 (a small window-boundary bias remains; the point is it is
+    # not the ~10x it read before the warm-up guard was added)
+    assert rvol.value is not None and abs(rvol.value - 1.0) < 0.2
+
+
 def test_cvd_sign_and_slope() -> None:
     cvd = CVD(slope_window_s=300)
     cvd.update(_trade(0, 100, 2.0, buyer_maker=False))  # aggressive buy +2

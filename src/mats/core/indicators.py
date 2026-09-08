@@ -49,18 +49,30 @@ class RVOL:
     over the trailing `long_s`. >1 means unusually active.
     """
 
-    def __init__(self, short_s: float, long_s: float) -> None:
+    def __init__(self, short_s: float, long_s: float, warmup_frac: float = 0.9) -> None:
         self.short = RollingSum(short_s)
         self.long = RollingSum(long_s)
         self._short_s = short_s
         self._long_s = long_s
+        self._warmup_s = long_s * warmup_frac
+        self._first_ts: float | None = None
+        self._last_ts: float | None = None
 
     def update(self, ts: float, volume: float) -> None:
+        if self._first_ts is None:
+            self._first_ts = ts
+        self._last_ts = ts
         self.short.update(ts, volume)
         self.long.update(ts, volume)
 
     @property
     def value(self) -> float | None:
+        # Until the long window has actually accumulated ~long_s of history, its total
+        # under-represents the true baseline and RVOL reads several-x too high.
+        if self._first_ts is None or self._last_ts is None:
+            return None
+        if self._last_ts - self._first_ts < self._warmup_s:
+            return None
         blocks = self._long_s / self._short_s
         baseline = self.long.total / blocks
         if baseline <= 0:

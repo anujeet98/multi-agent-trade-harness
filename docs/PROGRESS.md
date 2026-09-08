@@ -12,10 +12,16 @@ Update this at the end of every working session. Newest status at the top.
 - **Branches:** `main` (green only, PR merges), `develop` (integration). Feature: `feat/<issue#>-slug`.
 - **Done:** project scaffold, config with all Rule Set v1.1 params, typed models, full strategy
   docs, architecture + LLM design, data-source design, 13 GitHub issues.
-  **Issue #2** (`feat/2-core-bus-indicators`): event bus, SimClock/RealClock, indicator
-  library (EMA, RollingSum, RVOL, CVD+slope, ATR, AnchoredVWAP, OI delta, book imbalance /
-  microprice / spread / walk-slippage). 17 tests, ruff+mypy clean. CI workflow added. → PR open.
-- **Next:** merge #2 PR into develop, then issue #3 — CoinDCX + Binance feed clients.
+  **#2** merged: event bus, clocks, indicator library.
+  **#3** (`feat/3-feeds`): `feeds/symbols.py` (canonical↔CoinDCX↔Binance map + universe),
+  `feeds/base.py` (MarketDataSource protocol + FeedRunner staleness watchdog → FeedHealth),
+  `feeds/binance.py` (USDⓈ-M public REST + combined WS, pure `parse_*` fns), `feeds/coindcx.py`
+  (universe, contract specs, candles, book — endpoints marked VERIFY, polling fallback stream).
+  New models: MarkPrice, FeedHealth, ContractSpec. **PR #15 open** — `/code-review` run,
+  5 findings fixed (watchdog seed, bounded REST fan-out via `core/concurrency.gather_limited`,
+  order-book dual payload shape, RVOL warm-up guard). 35 tests, ruff+mypy clean.
+- **Reviews so far:** #17 review-agent merged; #18 OKX-rejected merged.
+- **Next:** merge #15, then verify CoinDCX endpoints live (#16 follow-up), then issue #4 — scanner agent.
 - **Blocked on user:** nothing. (Later: CoinDCX read-only API key for live feed test; decision
   on Binance-vs-Bybit indicator source once we hit geo/availability reality.)
 
