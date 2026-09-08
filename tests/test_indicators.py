@@ -86,6 +86,33 @@ def test_rsi_bounds_and_warmup() -> None:
     assert rsi2.value is not None and rsi2.value < 5.0
 
 
+def test_rsi_sma_seed_matches_wilder_reference() -> None:
+    # classic textbook series; RSI(14) after the 15th close ~ 70.53
+    closes = [
+        44.34,
+        44.09,
+        44.15,
+        43.61,
+        44.33,
+        44.83,
+        45.10,
+        45.42,
+        45.84,
+        46.08,
+        45.89,
+        46.03,
+        45.61,
+        46.28,
+        46.28,
+    ]
+    rsi = RSI(period=14)
+    for c in closes[:-1]:
+        rsi.update(c)
+    assert rsi.value is None  # 13 changes, not warm
+    rsi.update(closes[-1])
+    assert rsi.value is not None and abs(rsi.value - 70.53) < 0.5
+
+
 def test_cvd_tick_decays_slope_when_tape_quiet() -> None:
     cvd = CVD(slope_window_s=300)
     for i in range(10):

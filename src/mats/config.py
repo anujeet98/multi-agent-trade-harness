@@ -21,7 +21,9 @@ class StrategyParams(BaseModel):
     """Rule Set v1.1 thresholds. Defaults are backtest-tunable hypotheses, not gospel."""
 
     # Layer 0 - eligibility
-    min_24h_quote_volume_inr: float = 15_000_000
+    # Quote volume is USDT-denominated on both Binance and CoinDCX B-*_USDT perps.
+    # ~$2M ≈ ₹17cr — the "₹15cr" figure in the docs was an INR-framing slip.
+    min_24h_quote_volume_usdt: float = 2_000_000
     max_spread_pct: float = 0.15
     max_abs_funding_pct: float = 0.08
     max_mark_last_gap_pct: float = 0.3

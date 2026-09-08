@@ -119,14 +119,19 @@ class CVD:
 
 
 class RSI:
-    """Wilder's RSI over `period` closes. `value` is None until warmed up."""
+    """Wilder's RSI over `period` closes.
+
+    Seeded with the simple average of the first `period` changes, then Wilder-smoothed.
+    `value` is None until `period` changes have been seen.
+    """
 
     def __init__(self, period: int = 14) -> None:
         self.period = period
         self._prev: float | None = None
+        self._seed_gains: list[float] = []
+        self._seed_losses: list[float] = []
         self._avg_gain: float | None = None
         self._avg_loss: float | None = None
-        self._count = 0
 
     def update(self, close: float) -> None:
         if self._prev is None:
@@ -136,20 +141,22 @@ class RSI:
         self._prev = close
         gain = max(change, 0.0)
         loss = max(-change, 0.0)
-        self._count += 1
-        if self._avg_gain is None or self._avg_loss is None:
-            # simple average seed over the first `period` changes
-            g = self._avg_gain or 0.0
-            n = self._avg_loss or 0.0
-            self._avg_gain = g + gain / self.period
-            self._avg_loss = n + loss / self.period
-        else:
-            self._avg_gain = (self._avg_gain * (self.period - 1) + gain) / self.period
-            self._avg_loss = (self._avg_loss * (self.period - 1) + loss) / self.period
+
+        if self._avg_gain is None:  # still seeding
+            self._seed_gains.append(gain)
+            self._seed_losses.append(loss)
+            if len(self._seed_gains) == self.period:
+                self._avg_gain = sum(self._seed_gains) / self.period
+                self._avg_loss = sum(self._seed_losses) / self.period
+            return
+
+        assert self._avg_loss is not None
+        self._avg_gain = (self._avg_gain * (self.period - 1) + gain) / self.period
+        self._avg_loss = (self._avg_loss * (self.period - 1) + loss) / self.period
 
     @property
     def value(self) -> float | None:
-        if self._count < self.period or self._avg_gain is None or self._avg_loss is None:
+        if self._avg_gain is None or self._avg_loss is None:
             return None
         if self._avg_loss == 0:
             return 100.0

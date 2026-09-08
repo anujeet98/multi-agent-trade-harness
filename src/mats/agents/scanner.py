@@ -35,7 +35,7 @@ _HOTNESS_FEATURES = ("rvol_5m", "rvol_15m", "abs_ret_15m", "tps_ratio", "oi_delt
 
 def check_eligible(s: SymbolState, p: StrategyParams, now_ts: float) -> tuple[bool, str]:
     """Layer 0. Fail-closed: missing data => not eligible."""
-    if s.quote_volume_24h is None or s.quote_volume_24h < p.min_24h_quote_volume_inr:
+    if s.quote_volume_24h is None or s.quote_volume_24h < p.min_24h_quote_volume_usdt:
         return False, "E1_volume"
     if s.spread_pct is not None and s.spread_pct > p.max_spread_pct:
         return False, "E3_spread"

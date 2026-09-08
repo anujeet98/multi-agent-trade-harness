@@ -51,7 +51,6 @@ class SymbolState:
         self.next_funding_ts: float | None = None
         self.quote_volume_24h: float | None = None
         self.age_days: float | None = None
-        self.gainer_rank: int | None = None  # set by the scanner from InstrumentStats ranking
 
         self._book: OrderBook | None = None
         self.last_liquidation: Liquidation | None = None
@@ -106,6 +105,8 @@ class SymbolState:
         self.mark_price = s.mark_price
         self.funding_pct = s.funding_rate_pct
         self.quote_volume_24h = s.quote_volume_24h
+        if s.listed_at is not None:
+            self.age_days = (s.ts - s.listed_at).total_seconds() / 86_400.0
         self._oi.update(s.ts.timestamp(), s.open_interest)
 
     def on_book(self, b: OrderBook) -> None:

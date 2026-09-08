@@ -111,6 +111,26 @@ def test_hot_long_passes_all_checks() -> None:
     assert ok, why
 
 
+def test_e6_rejects_freshly_listed_contract() -> None:
+    p = StrategyParams()
+    s = build_hot_long(p)
+    now = BASE + N * 60 + 30
+    s.on_stats(
+        InstrumentStats(
+            symbol="HOTUSDT",
+            ts=_dt(now),
+            last_price=112.0,
+            mark_price=112.0,
+            funding_rate_pct=0.01,
+            open_interest=1200.0,
+            quote_volume_24h=20_000_000.0,
+            listed_at=_dt(now - 2 * 86_400),  # 2 days old, need >= 7
+        )
+    )
+    ok, why = check_eligible(s, p, now)
+    assert not ok and why == "E6_age"
+
+
 def test_scanner_evaluate_emits_and_ranks() -> None:
     p = StrategyParams()
     from mats.core.bus import EventBus

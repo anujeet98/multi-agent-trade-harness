@@ -126,15 +126,23 @@ class BinanceFuturesFeed:
 
     def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
         self._http = http or httpx.AsyncClient(base_url=REST_BASE, timeout=10.0)
+        self._onboard: dict[str, datetime] = {}  # symbol -> listing date (cached)
 
     # --- REST -----------------------------------------------------------------
 
-    async def list_symbols(self) -> set[str]:
+    async def _exchange_info(self) -> list[dict]:
         r = await self._http.get("/fapi/v1/exchangeInfo")
         r.raise_for_status()
+        syms: list[dict] = r.json()["symbols"]
+        for s in syms:
+            if s.get("onboardDate"):
+                self._onboard[s["symbol"]] = _ts(s["onboardDate"])
+        return syms
+
+    async def list_symbols(self) -> set[str]:
         return {
             s["symbol"]
-            for s in r.json()["symbols"]
+            for s in await self._exchange_info()
             if s.get("contractType") == "PERPETUAL" and s.get("status") == "TRADING"
         }
 
@@ -166,6 +174,9 @@ class BinanceFuturesFeed:
             self._get_json("/fapi/v1/premiumIndex"),
             self._open_interest_map(symbols),
         )
+        if not self._onboard:
+            with contextlib.suppress(httpx.HTTPError, KeyError, ValueError):
+                await self._exchange_info()
         prem_by_sym = {p["symbol"]: p for p in premium}
         now = datetime.now(UTC)
         out: list[InstrumentStats] = []
@@ -183,6 +194,7 @@ class BinanceFuturesFeed:
                     funding_rate_pct=float(p.get("lastFundingRate", 0.0)) * 100,
                     open_interest=oi_map.get(sym, 0.0),
                     quote_volume_24h=float(t["quoteVolume"]),
+                    listed_at=self._onboard.get(sym),
                 )
             )
         return out
