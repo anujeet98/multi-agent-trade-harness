@@ -17,8 +17,11 @@ Update this at the end of every working session. Newest status at the top.
   `feeds/base.py` (MarketDataSource protocol + FeedRunner staleness watchdog → FeedHealth),
   `feeds/binance.py` (USDⓈ-M public REST + combined WS, pure `parse_*` fns), `feeds/coindcx.py`
   (universe, contract specs, candles, book — endpoints marked VERIFY, polling fallback stream).
-  New models: MarkPrice, FeedHealth, ContractSpec. 30 tests, ruff+mypy clean. → PR open.
-- **Next:** merge #3, verify CoinDCX endpoints against live API (follow-up), then issue #4 — scanner agent.
+  New models: MarkPrice, FeedHealth, ContractSpec. **PR #15 open** — `/code-review` run,
+  5 findings fixed (watchdog seed, bounded REST fan-out via `core/concurrency.gather_limited`,
+  order-book dual payload shape, RVOL warm-up guard). 35 tests, ruff+mypy clean.
+- **Reviews so far:** #17 review-agent merged; #18 OKX-rejected merged.
+- **Next:** merge #15, then verify CoinDCX endpoints live (#16 follow-up), then issue #4 — scanner agent.
 - **Blocked on user:** nothing. (Later: CoinDCX read-only API key for live feed test; decision
   on Binance-vs-Bybit indicator source once we hit geo/availability reality.)
 
