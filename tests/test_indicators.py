@@ -6,6 +6,7 @@ from mats.core.indicators import (
     ATR,
     CVD,
     EMA,
+    RSI,
     RVOL,
     AnchoredVWAP,
     OpenInterestDelta,
@@ -71,6 +72,18 @@ def test_cvd_sign_and_slope() -> None:
     cvd.update(_trade(20, 100, 3.0, buyer_maker=False))
     assert cvd.cumulative == 4.0
     assert cvd.slope > 0
+
+
+def test_rsi_bounds_and_warmup() -> None:
+    rsi = RSI(period=14)
+    assert rsi.value is None
+    for p in [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]:
+        rsi.update(float(p))
+    assert rsi.value == 100.0  # only gains
+    rsi2 = RSI(period=14)
+    for p in range(30, 10, -1):  # only losses
+        rsi2.update(float(p))
+    assert rsi2.value is not None and rsi2.value < 5.0
 
 
 def test_atr_true_range() -> None:
