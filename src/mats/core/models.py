@@ -52,7 +52,19 @@ class Liquidation(BaseModel):
     price: float
 
 
+class MarkPrice(BaseModel):
+    """Live mark price + funding, from a streaming source (e.g. Binance markPrice@1s)."""
+
+    symbol: str
+    ts: datetime
+    mark_price: float
+    funding_rate_pct: float  # per funding interval (8h), as a percentage
+    next_funding_time: datetime | None = None
+
+
 class InstrumentStats(BaseModel):
+    """Periodic REST snapshot used by the scanner (Layer 0/1)."""
+
     symbol: str
     ts: datetime
     last_price: float
@@ -60,6 +72,32 @@ class InstrumentStats(BaseModel):
     funding_rate_pct: float
     open_interest: float
     quote_volume_24h: float
+
+
+class FeedHealth(BaseModel):
+    """Emitted by a feed runner when a stream goes stale or recovers.
+
+    The coordinator halts new entries while any subscribed feed is stale.
+    """
+
+    source: str  # "binance", "coindcx", ...
+    stream: str  # "aggTrade", "depth", "kline_1m", ...
+    healthy: bool
+    last_message_age_s: float
+    ts: datetime
+
+
+class ContractSpec(BaseModel):
+    """Tradeable-contract metadata from CoinDCX (the execution venue)."""
+
+    symbol: str  # canonical, e.g. BTCUSDT
+    coindcx_pair: str  # e.g. B-BTC_USDT
+    tick_size: float
+    step_size: float  # min quantity increment
+    min_quantity: float
+    max_leverage: float
+    maker_fee_pct: float
+    taker_fee_pct: float
 
 
 class Candidate(BaseModel):
