@@ -20,8 +20,14 @@ Update this at the end of every working session. Newest status at the top.
   New models: MarkPrice, FeedHealth, ContractSpec. **PR #15 open** — `/code-review` run,
   5 findings fixed (watchdog seed, bounded REST fan-out via `core/concurrency.gather_limited`,
   order-book dual payload shape, RVOL warm-up guard). 35 tests, ruff+mypy clean.
-- **Reviews so far:** #17 review-agent merged; #18 OKX-rejected merged.
-- **Next:** merge #15, then verify CoinDCX endpoints live (#16 follow-up), then issue #4 — scanner agent.
+  **#15 merged.**
+  **#4** (`feat/4-scanner`): `RSI` indicator; `agents/symbol_state.py` (per-symbol rolling
+  state — returns, RVOL, tps_ratio, ATR-expansion, OI delta, CVD + divergence, RSI, book);
+  `agents/scanner.py` (Layer 0 `check_eligible` E1/E3-E7 + Layer 1 `_directional_checks`
+  H1-H10 + z-score hotness ranking → top-5/side `Candidate`s); `feeds/pollers.py`
+  (`InstrumentStatsPoller`). 44 tests, ruff+mypy clean. → PR open.
+- **Reviews so far:** #17 review-agent merged; #18 OKX-rejected merged; #15 feeds (5 findings fixed) merged.
+- **Next:** merge #4, verify CoinDCX endpoints live (#16), then issue #5 — observer agent (Layer 2).
 - **Blocked on user:** nothing. (Later: CoinDCX read-only API key for live feed test; decision
   on Binance-vs-Bybit indicator source once we hit geo/availability reality.)
 

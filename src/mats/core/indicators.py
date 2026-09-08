@@ -97,8 +97,15 @@ class CVD:
         self.cumulative += signed
         ts = trade.ts.timestamp()
         self._points.append((ts, self.cumulative))
-        cutoff = ts - self._window_s
-        while len(self._points) > 2 and self._points[0][0] < cutoff:
+        self.tick(ts)
+
+    def tick(self, now: float) -> None:
+        """Drop points that have aged out of the window. Call from the owner's clock so
+        slope decays to 0 when the tape goes quiet, not just when a new trade arrives.
+        Keeps one anchor point at/just-before the cutoff plus everything newer.
+        """
+        cutoff = now - self._window_s
+        while len(self._points) >= 2 and self._points[1][0] <= cutoff:
             self._points.popleft()
 
     @property
@@ -109,6 +116,52 @@ class CVD:
         (t0, v0), (t1, v1) = self._points[0], self._points[-1]
         dt = t1 - t0
         return (v1 - v0) / dt if dt > 0 else 0.0
+
+
+class RSI:
+    """Wilder's RSI over `period` closes.
+
+    Seeded with the simple average of the first `period` changes, then Wilder-smoothed.
+    `value` is None until `period` changes have been seen.
+    """
+
+    def __init__(self, period: int = 14) -> None:
+        self.period = period
+        self._prev: float | None = None
+        self._seed_gains: list[float] = []
+        self._seed_losses: list[float] = []
+        self._avg_gain: float | None = None
+        self._avg_loss: float | None = None
+
+    def update(self, close: float) -> None:
+        if self._prev is None:
+            self._prev = close
+            return
+        change = close - self._prev
+        self._prev = close
+        gain = max(change, 0.0)
+        loss = max(-change, 0.0)
+
+        if self._avg_gain is None:  # still seeding
+            self._seed_gains.append(gain)
+            self._seed_losses.append(loss)
+            if len(self._seed_gains) == self.period:
+                self._avg_gain = sum(self._seed_gains) / self.period
+                self._avg_loss = sum(self._seed_losses) / self.period
+            return
+
+        assert self._avg_loss is not None
+        self._avg_gain = (self._avg_gain * (self.period - 1) + gain) / self.period
+        self._avg_loss = (self._avg_loss * (self.period - 1) + loss) / self.period
+
+    @property
+    def value(self) -> float | None:
+        if self._avg_gain is None or self._avg_loss is None:
+            return None
+        if self._avg_loss == 0:
+            return 100.0
+        rs = self._avg_gain / self._avg_loss
+        return 100.0 - 100.0 / (1.0 + rs)
 
 
 class ATR:

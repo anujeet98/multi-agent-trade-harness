@@ -21,7 +21,9 @@ class StrategyParams(BaseModel):
     """Rule Set v1.1 thresholds. Defaults are backtest-tunable hypotheses, not gospel."""
 
     # Layer 0 - eligibility
-    min_24h_quote_volume_inr: float = 15_000_000
+    # Quote volume is USDT-denominated on both Binance and CoinDCX B-*_USDT perps.
+    # ~$2M ≈ ₹17cr — the "₹15cr" figure in the docs was an INR-framing slip.
+    min_24h_quote_volume_usdt: float = 2_000_000
     max_spread_pct: float = 0.15
     max_abs_funding_pct: float = 0.08
     max_mark_last_gap_pct: float = 0.3
@@ -34,6 +36,24 @@ class StrategyParams(BaseModel):
     ret_1h_band_pct: tuple[float, float] = (3.0, 22.0)
     max_rsi_5m: float = 82.0
     top_gainer_rank_max: int = 20
+    scan_interval_s: float = 45.0
+    rvol_baseline_window_s: float = 14_400.0  # 4h
+    oi_delta_window_s: float = 900.0  # 15m
+    cvd_window_s: float = 300.0  # 5m
+    rs_vs_btc_window_s: float = 900.0  # 15m
+    btc_symbol: str = "BTCUSDT"
+    candidates_per_side: int = 5
+    # hotness score weights (applied to z-scored features)
+    hotness_weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "rvol_5m": 1.0,
+            "rvol_15m": 1.0,
+            "abs_ret_15m": 1.0,
+            "tps_ratio": 1.0,
+            "oi_delta": 1.0,
+            "rs_vs_btc": 1.0,
+        }
+    )
 
     # Layer 2 - entry
     room_to_run_min_score: int = 6  # of 9

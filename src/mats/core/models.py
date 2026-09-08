@@ -71,7 +71,8 @@ class InstrumentStats(BaseModel):
     mark_price: float
     funding_rate_pct: float
     open_interest: float
-    quote_volume_24h: float
+    quote_volume_24h: float  # USDT
+    listed_at: datetime | None = None  # contract onboard date, for the E6 age check
 
 
 class FeedHealth(BaseModel):
