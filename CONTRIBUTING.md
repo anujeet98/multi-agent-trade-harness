@@ -10,7 +10,8 @@ Solo repo, but run it like a team so history stays clean.
 ## Cycle
 1. Pick a GitHub issue. Create the branch off `develop`.
 2. Small commits, imperative subject (`add coindcx rest client`), body explains *why*.
-3. Open a PR into `develop`, body: `Closes #<issue>`. Squash-merge.
+3. Open a PR into `develop`, body: `Closes #<issue>`. Run `/review` (the `trade-reviewer`
+   subagent) and fix BLOCKER/MAJOR findings. Squash-merge once CI is green.
 4. Periodically PR `develop` -> `main` as a release, tag `v0.x.y`.
 
 ## Standards
