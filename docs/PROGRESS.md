@@ -12,7 +12,10 @@ Update this at the end of every working session. Newest status at the top.
 - **Branches:** `main` (green only, PR merges), `develop` (integration). Feature: `feat/<issue#>-slug`.
 - **Done:** project scaffold, config with all Rule Set v1.1 params, typed models, full strategy
   docs, architecture + LLM design, data-source design, 13 GitHub issues.
-- **Next:** issue #2 — `core/` event bus + rolling indicator library + simulated clock.
+  **Issue #2** (`feat/2-core-bus-indicators`): event bus, SimClock/RealClock, indicator
+  library (EMA, RollingSum, RVOL, CVD+slope, ATR, AnchoredVWAP, OI delta, book imbalance /
+  microprice / spread / walk-slippage). 17 tests, ruff+mypy clean. CI workflow added. → PR open.
+- **Next:** merge #2 PR into develop, then issue #3 — CoinDCX + Binance feed clients.
 - **Blocked on user:** nothing. (Later: CoinDCX read-only API key for live feed test; decision
   on Binance-vs-Bybit indicator source once we hit geo/availability reality.)
 
