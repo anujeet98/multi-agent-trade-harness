@@ -57,12 +57,23 @@ alternatives / status.
   tradeable universe, contract specs, our mark/funding, account state, and order placement.
 - **Why:** Binance futures data is the deepest and fully free with no auth for public market
   data; gives us cross-exchange lead-lag for free.
-- **Alternatives:** OKX (has official MCP, good API — fallback), Bybit (fallback), CoinDCX
+- **Alternatives:** Bybit v5 (fallback — FIU-IND registered, accessible from India), CoinDCX
   own data (thin — used only for CoinDCX-only symbols and execution-side truth). MCPs are not
   used in the hot path — they're an LLM tool interface, extra latency/translation; may be used
   inside LLM nodes only.
-- **Risk:** Binance reachability from India. If blocked → Bybit or OKX as primary.
+- **Risk:** Binance reachability from India. If blocked → **Bybit** as primary.
 - **Status:** active, pending reachability check (issue #3).
+
+### D7a — OKX evaluated and rejected (2026-09-09)
+- OKX has a good public API (v5, no-auth WS: trades, books, candles, funding, open-interest,
+  and a `liquidation-orders` channel) and an official AI-trading MCP (`okx-trade-mcp`).
+- **But OKX exited India in 2024** (no FIU-IND registration) and has not returned as of
+  2026-09. Public data endpoints may still respond from an Indian IP today, but that's
+  unreliable and against ToS — not acceptable as a primary or documented fallback.
+- Binance and Bybit both registered with FIU-IND and operate in India → they are the feed
+  sources. OKX MCP not adopted (India restriction + MCP stays out of the hot path anyway).
+- If the user ever routes through a VPN or relocates, OKX's `liquidation-orders` channel is
+  a genuinely nice-to-have (cleaner than Binance `!forceOrder`), so revisit then.
 
 ## D8 — Skipped the manual scorecard pre-validation
 - **What:** user chose to build the harness before hand-testing the rules on 15 setups.
