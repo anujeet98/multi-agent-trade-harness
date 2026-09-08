@@ -16,11 +16,13 @@ import asyncio
 import contextlib
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
+from mats.core.concurrency import gather_limited
 from mats.core.models import BookLevel, Candle, ContractSpec, OrderBook
-from mats.feeds.symbols import coindcx_to_canonical
+from mats.feeds.symbols import canonical_to_coindcx, coindcx_to_canonical
 
 PUBLIC_BASE = "https://public.coindcx.com"
 API_BASE = "https://api.coindcx.com"
@@ -54,22 +56,24 @@ def parse_candles(pair: str, interval: str, payload: dict | list) -> list[Candle
     return out
 
 
+def _levels(raw: object) -> list[BookLevel]:
+    """Accept either a {price: qty} map or a [[price, qty], ...] list."""
+    if isinstance(raw, dict):
+        pairs: list[tuple[Any, Any]] = list(raw.items())
+    elif isinstance(raw, list):
+        pairs = [(row[0], row[1]) for row in raw]
+    else:
+        return []
+    return [BookLevel(price=float(p), qty=float(q)) for p, q in pairs]
+
+
 def parse_orderbook(pair: str, payload: dict) -> OrderBook:
     sym = coindcx_to_canonical(pair) or pair
-    bids = payload.get("bids", {})
-    asks = payload.get("asks", {})
     return OrderBook(
         symbol=sym,
         ts=datetime.now(UTC),
-        bids=sorted(
-            (BookLevel(price=float(p), qty=float(q)) for p, q in bids.items()),
-            key=lambda lvl: lvl.price,
-            reverse=True,
-        ),
-        asks=sorted(
-            (BookLevel(price=float(p), qty=float(q)) for p, q in asks.items()),
-            key=lambda lvl: lvl.price,
-        ),
+        bids=sorted(_levels(payload.get("bids")), key=lambda lvl: lvl.price, reverse=True),
+        asks=sorted(_levels(payload.get("asks")), key=lambda lvl: lvl.price),
     )
 
 
@@ -127,27 +131,30 @@ class CoinDCXFeed:
         r.raise_for_status()
         return parse_orderbook(pair, r.json())
 
-    async def build_contract_specs(self, pairs: set[str]) -> dict[str, ContractSpec]:
+    async def build_contract_specs(
+        self, pairs: set[str], concurrency: int = 5
+    ) -> dict[str, ContractSpec]:
+        # CoinDCX per-endpoint throttles are tighter than Binance's; cap the fan-out.
         async def one(pair: str) -> ContractSpec | None:
             with contextlib.suppress(httpx.HTTPError, KeyError, ValueError):
                 return await self.fetch_instrument(pair)
             return None
 
-        specs = await asyncio.gather(*(one(p) for p in pairs))
+        specs = await gather_limited((one(p) for p in pairs), concurrency)
         return {s.symbol: s for s in specs if s is not None}
 
     async def stream(self, symbols: list[str]) -> AsyncIterator[object]:
-        """Polling fallback stream: CoinDCX public book/candle polling for symbols with no
-        Binance data. Binance is the primary WS feed; this keeps CoinDCX-only alts covered.
+        """Polling fallback stream: CoinDCX public book polling for symbols with no Binance
+        data. Binance is the primary WS feed; this keeps CoinDCX-only alts covered.
         """
-        from mats.feeds.symbols import canonical_to_coindcx
-
         while True:
             for sym in symbols:
                 pair = canonical_to_coindcx(sym)
                 if not pair:
                     continue
-                with contextlib.suppress(httpx.HTTPError, KeyError, ValueError):
+                with contextlib.suppress(
+                    httpx.HTTPError, KeyError, ValueError, TypeError, AttributeError
+                ):
                     yield await self.fetch_orderbook(pair)
             await asyncio.sleep(2.0)
 

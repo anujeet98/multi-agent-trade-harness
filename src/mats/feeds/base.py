@@ -49,6 +49,9 @@ class FeedRunner:
         self._healthy = True
 
     async def run(self, symbols: list[str]) -> None:
+        # Seed with "now" so a source that never yields (e.g. an unreachable WS stuck
+        # in its reconnect loop) is detected as stale instead of looking healthy forever.
+        self._last_msg_at = self._clock.now()
         watchdog = asyncio.create_task(self._watchdog())
         try:
             async for event in self._source.stream(symbols):
@@ -65,7 +68,7 @@ class FeedRunner:
     async def _watchdog(self) -> None:
         while True:
             await self._clock.sleep(self._check_interval_s)
-            if self._last_msg_at is None:
+            if self._last_msg_at is None:  # pragma: no cover - run() seeds it
                 continue
             age = self._clock.now() - self._last_msg_at
             if self._healthy and age > self._stale_after_s:

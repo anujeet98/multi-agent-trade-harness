@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 import httpx
 import websockets
 
+from mats.core.concurrency import gather_limited
 from mats.core.models import (
     BookLevel,
     Candle,
@@ -191,7 +192,11 @@ class BinanceFuturesFeed:
         r.raise_for_status()
         return r.json()
 
-    async def _open_interest_map(self, symbols: set[str] | None) -> dict[str, float]:
+    async def _open_interest_map(
+        self, symbols: set[str] | None, concurrency: int = 8
+    ) -> dict[str, float]:
+        # /fapi/v1/openInterest is per-symbol; cap concurrency so a universe-wide
+        # refresh (100+ perps) can't burst past Binance's request-weight limit.
         if not symbols:
             return {}
 
@@ -203,7 +208,7 @@ class BinanceFuturesFeed:
             except (httpx.HTTPError, KeyError, ValueError):
                 return sym, 0.0
 
-        return dict(await asyncio.gather(*(one(s) for s in symbols)))
+        return dict(await gather_limited((one(s) for s in symbols), concurrency))
 
     # --- WebSocket ----------------------------------------------------------
 

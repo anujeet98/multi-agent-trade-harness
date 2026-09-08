@@ -46,3 +46,35 @@ async def test_runner_flags_stale_then_recovers() -> None:
         await task
     except asyncio.CancelledError:
         pass
+
+
+class SilentSource:
+    """A source stuck reconnecting: never yields a single event."""
+
+    source_name = "silent"
+
+    async def stream(self, symbols: list[str]) -> AsyncIterator[object]:
+        while True:
+            await asyncio.sleep(3600)
+            yield "never"  # pragma: no cover
+
+
+async def test_runner_flags_source_that_never_connects() -> None:
+    bus = EventBus()
+    clock = SimClock()
+    health = bus.subscribe(FeedHealth)
+
+    runner = FeedRunner(SilentSource(), bus, clock, stale_after_s=15.0, check_interval_s=5.0)
+    task = asyncio.create_task(runner.run(["BTCUSDT"]))
+    await asyncio.sleep(0)
+
+    for _ in range(5):
+        await clock.advance(5.0)
+    ev = await asyncio.wait_for(health.__anext__(), 1)
+    assert isinstance(ev, FeedHealth) and ev.healthy is False
+
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass

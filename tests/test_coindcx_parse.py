@@ -22,7 +22,7 @@ def test_parse_candles() -> None:
     assert c.symbol == "ARXUSDT" and c.close == 0.158 and c.interval == "1m"
 
 
-def test_parse_orderbook_sorted() -> None:
+def test_parse_orderbook_dict_shape() -> None:
     payload = {
         "bids": {"99.0": "5", "98.5": "10", "99.5": "2"},
         "asks": {"100.5": "4", "100.0": "1"},
@@ -30,6 +30,21 @@ def test_parse_orderbook_sorted() -> None:
     ob = parse_orderbook("B-BTC_USDT", payload)
     assert [lvl.price for lvl in ob.bids] == [99.5, 99.0, 98.5]
     assert [lvl.price for lvl in ob.asks] == [100.0, 100.5]
+
+
+def test_parse_orderbook_list_shape() -> None:
+    payload = {
+        "bids": [["99.0", "5"], ["99.5", "2"]],
+        "asks": [["100.5", "4"], ["100.0", "1"]],
+    }
+    ob = parse_orderbook("B-BTC_USDT", payload)
+    assert [lvl.price for lvl in ob.bids] == [99.5, 99.0]
+    assert [lvl.price for lvl in ob.asks] == [100.0, 100.5]
+
+
+def test_parse_orderbook_missing_side() -> None:
+    ob = parse_orderbook("B-BTC_USDT", {"bids": {"99.0": "5"}})
+    assert ob.asks == [] and ob.bids[0].price == 99.0
 
 
 def test_parse_instrument() -> None:
