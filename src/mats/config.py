@@ -61,12 +61,22 @@ class StrategyParams(BaseModel):
     resume_candle_min_rvol: float = 1.5
     breakout_min_rvol: float = 3.0
     consolidation_max_width_pct: float = 0.6
+    consolidation_min_minutes: int = 3
     min_book_imbalance: float = 0.20
     wall_size_mult: float = 3.0
     max_size_pct_of_60s_vol: float = 8.0
     max_market_cross_size_pct_of_60s_vol: float = 5.0
     max_book_walk_slippage_pct: float = 0.15
     post_fill_scratch_seconds: int = 15
+    zigzag_min_move_pct: float = 0.3
+    leg_extension_max_mult: float = 1.8  # current leg vs avg leg -> exhausted
+    max_atr_above_vwap_mult: float = 3.0  # stretched from anchored VWAP
+    resistance_proximity_pct: float = 0.4  # R2: entry too close to a prior swing extreme
+    climax_bar_atr_mult: float = 3.0  # R1
+    rsi_1m_room_cap: float = 80.0  # room-to-run check 6
+    btc_5m_move_reject_pct: float = 1.5  # R5
+    min_rs_vs_btc_pct: float = 0.15  # R7: move is pure BTC beta
+    observer_watch_seconds: int = 600  # give up hunting an entry after this
 
     # Layer 3 - execution / management
     risk_per_trade_inr: float = 150.0

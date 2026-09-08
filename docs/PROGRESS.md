@@ -5,31 +5,35 @@ Update this at the end of every working session. Newest status at the top.
 
 ---
 
-## Current status (2026-09-08)
+## Current status (as of 2026-09-09, end of session)
 
 - **Phase:** building the paper-mode MVP (Epic #1). Deterministic core first.
 - **Repo:** github.com/anujeet98/multi-agent-trade-harness (public). Local: `~/Desktop/multi-agent-trade-harness`.
-- **Branches:** `main` (green only, PR merges), `develop` (integration). Feature: `feat/<issue#>-slug`.
-- **Done:** project scaffold, config with all Rule Set v1.1 params, typed models, full strategy
-  docs, architecture + LLM design, data-source design, 13 GitHub issues.
-  **#2** merged: event bus, clocks, indicator library.
-  **#3** (`feat/3-feeds`): `feeds/symbols.py` (canonical↔CoinDCX↔Binance map + universe),
-  `feeds/base.py` (MarketDataSource protocol + FeedRunner staleness watchdog → FeedHealth),
-  `feeds/binance.py` (USDⓈ-M public REST + combined WS, pure `parse_*` fns), `feeds/coindcx.py`
-  (universe, contract specs, candles, book — endpoints marked VERIFY, polling fallback stream).
-  New models: MarkPrice, FeedHealth, ContractSpec. **PR #15 open** — `/code-review` run,
-  5 findings fixed (watchdog seed, bounded REST fan-out via `core/concurrency.gather_limited`,
-  order-book dual payload shape, RVOL warm-up guard). 35 tests, ruff+mypy clean.
-  **#15 merged.**
-  **#4** (`feat/4-scanner`): `RSI` indicator; `agents/symbol_state.py` (per-symbol rolling
-  state — returns, RVOL, tps_ratio, ATR-expansion, OI delta, CVD + divergence, RSI, book);
-  `agents/scanner.py` (Layer 0 `check_eligible` E1/E3-E7 + Layer 1 `_directional_checks`
-  H1-H10 + z-score hotness ranking → top-5/side `Candidate`s); `feeds/pollers.py`
-  (`InstrumentStatsPoller`). 44 tests, ruff+mypy clean. → PR open.
-- **Reviews so far:** #17 review-agent merged; #18 OKX-rejected merged; #15 feeds (5 findings fixed) merged.
-- **Next:** merge #4, verify CoinDCX endpoints live (#16), then issue #5 — observer agent (Layer 2).
-- **Blocked on user:** nothing. (Later: CoinDCX read-only API key for live feed test; decision
-  on Binance-vs-Bybit indicator source once we hit geo/availability reality.)
+  Python venv at `.venv` (python 3.12). Verify with `ruff check src tests && mypy src && pytest -q`.
+- **Branches:** `main` (green, PR merges only), `develop` (integration), `feat/<issue#>-slug` per issue.
+- **Merged into `develop`:** scaffold, #2 (bus/clock/indicators), #3 (feeds), #4 (scanner),
+  #17 (trade-reviewer subagent), #18 (OKX-rejected doc).
+- **OPEN — pick up here:** **PR #21** (`feat/5-observer`, issue #5) — observer / Layer 2.
+  56 tests green, ruff+mypy clean. Awaiting user review + merge. Self-review notes + the
+  `momentum_alive` spec deviation are in the PR body. Follow-up issue #22 tracks 4 approximated
+  Layer 2 signals (C4, room #7/#8, R6).
+- **Workflow each issue:** branch off develop → implement + tests → `ruff`/`mypy`/`pytest` →
+  push → open PR `Closes #n` → user runs `/code-review <PR#>` → fix findings → user merges.
+  (The project `trade-reviewer` subagent only loads on a fresh Claude Code start.)
+
+## Tomorrow — start here
+
+1. If PR #21 not yet merged: wait for user, apply any `/code-review 21` findings.
+2. Once #21 is in: **Issue #6 — risk agent** (`agents/risk.py`). Layer 3 sizing
+   (`position_notional = risk / stop_distance`, effective-leverage cap ≤12×, stop/TP1/TP2
+   math, time-stop, momentum-death exit) + Layer 4 circuit breakers M1–M8 (concurrency,
+   trades/hr, loss streak, daily loss/profit, BTC-vol halt, correlation, ledger reconcile).
+   All params already in `config.StrategyParams`. Consumes `TradeIntent`, emits a sized/vetoed
+   decision for the coordinator (#8).
+3. Then #7 paper broker, #8 coordinator, #9 wiring/logging, #10 replay.
+
+- **Blocked on user:** nothing. (Later: CoinDCX read-only API key for live feed test;
+  Binance-vs-Bybit reachability check; CoinDCX endpoint verification = issue #16.)
 
 ## How we got here (decision trail — see DECISIONS.md for the reasoning)
 
