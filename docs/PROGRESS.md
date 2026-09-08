@@ -53,7 +53,8 @@ Update this at the end of every working session. Newest status at the top.
 
 ## Open questions to resolve later
 
-- Binance API reachable from user's IP (India)? Fallback: Bybit or OKX as indicator source.
+- Binance API reachable from user's IP (India)? Fallback: **Bybit v5** (OKX rejected — exited
+  India, see DECISIONS D7a).
 - Which CoinDCX perps overlap with Binance perps (symbol map) — affects tradeable universe.
 - Does CoinDCX expose a liquidation stream? If not, use Binance `!forceOrder@arr` as proxy.
 - CoinDCX futures fee tier confirmation (~0.05% + 18% GST assumed).
