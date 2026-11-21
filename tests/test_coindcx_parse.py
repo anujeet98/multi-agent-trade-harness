@@ -80,4 +80,3 @@ def test_parse_instrument_live_shape() -> None:
     }
     spec = parse_instrument(payload)
     assert spec.max_leverage == 20.0 and spec.min_quantity == 0.001 and spec.tick_size == 0.1
-

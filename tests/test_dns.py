@@ -21,8 +21,13 @@ def _clean():
 
 def test_parse_doh_skips_cname_and_bad_records() -> None:
     body = json.dumps(
-        {"Answer": [{"type": 5, "data": "a."}, {"type": 1, "TTL": 30, "data": "1.2.3.4"},
-                    {"type": 1, "data": "not-an-ip"}]}
+        {
+            "Answer": [
+                {"type": 5, "data": "a."},
+                {"type": 1, "TTL": 30, "data": "1.2.3.4"},
+                {"type": 1, "data": "not-an-ip"},
+            ]
+        }
     ).encode()
     ips, ttl = dns.parse_doh(body)
     assert ips == ["1.2.3.4"]
@@ -71,7 +76,8 @@ def test_install_routes_only_listed_hosts(monkeypatch) -> None:
 def test_install_falls_back_to_system_when_doh_fails(monkeypatch) -> None:
     seen = []
     monkeypatch.setattr(
-        socket, "getaddrinfo",
+        socket,
+        "getaddrinfo",
         lambda host, port, *a, **k: seen.append(host) or [(socket.AF_INET, 1, 6, "", (host, port))],
     )
     monkeypatch.setattr(dns, "resolve", lambda h: [])

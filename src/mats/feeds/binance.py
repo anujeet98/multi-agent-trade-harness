@@ -131,9 +131,7 @@ def parse_ws(envelope: dict) -> object | None:
 class BinanceFuturesFeed:
     source_name = "binance"
 
-    def __init__(
-        self, *, http: httpx.AsyncClient | None = None, doh: bool = True
-    ) -> None:
+    def __init__(self, *, http: httpx.AsyncClient | None = None, doh: bool = True) -> None:
         # Indian ISPs DNS-block Binance; resolve its hosts over DoH (see mats.net.dns).
         if doh:
             dns.install()

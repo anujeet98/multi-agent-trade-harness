@@ -86,9 +86,7 @@ def parse_instrument(payload: dict) -> ContractSpec:
         step_size=float(d.get("quantity_increment", d.get("step_size", 0.0)) or 0.0),
         min_quantity=float(d.get("min_quantity", d.get("min_trade_size", 0.0)) or 0.0),
         # live payload has max_leverage_long/_short; older docs say max_leverage
-        max_leverage=float(
-            d.get("max_leverage_long", d.get("max_leverage", 0.0)) or 0.0
-        ),
+        max_leverage=float(d.get("max_leverage_long", d.get("max_leverage", 0.0)) or 0.0),
         maker_fee_pct=float(d.get("maker_fee", 0.0) or 0.0),
         taker_fee_pct=float(d.get("taker_fee", 0.0) or 0.0),
     )
