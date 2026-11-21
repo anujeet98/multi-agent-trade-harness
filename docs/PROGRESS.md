@@ -65,8 +65,8 @@ Update this at the end of every working session. Newest status at the top.
 
 ## Open questions to resolve later
 
-- Binance API reachable from user's IP (India)? Fallback: **Bybit v5** (OKX rejected — exited
-  India, see DECISIONS D7a).
+- ~~Binance API reachable from user's IP (India)?~~ Yes, via DoH (DNS-only block); see
+  08-data-sources.md "Connectivity from India".
 - Which CoinDCX perps overlap with Binance perps (symbol map) — affects tradeable universe.
 - Does CoinDCX expose a liquidation stream? If not, use Binance `!forceOrder@arr` as proxy.
 - CoinDCX futures fee tier confirmation (~0.05% + 18% GST assumed).

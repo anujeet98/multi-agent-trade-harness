@@ -62,3 +62,21 @@ def test_parse_instrument() -> None:
     spec = parse_instrument(payload)
     assert spec.symbol == "BTCUSDT"
     assert spec.tick_size == 0.1 and spec.max_leverage == 20.0 and spec.taker_fee_pct == 0.05
+
+
+def test_parse_instrument_live_shape() -> None:
+    # keys as returned by the live API on 2026-11-21 (max_leverage_long, min_trade_size)
+    payload = {
+        "instrument": {
+            "pair": "B-BTC_USDT",
+            "price_increment": 0.1,
+            "quantity_increment": 0.001,
+            "min_trade_size": 0.001,
+            "max_leverage_long": 20.0,
+            "max_leverage_short": 20.0,
+            "maker_fee": 0.025,
+            "taker_fee": 0.05,
+        }
+    }
+    spec = parse_instrument(payload)
+    assert spec.max_leverage == 20.0 and spec.min_quantity == 0.001 and spec.tick_size == 0.1

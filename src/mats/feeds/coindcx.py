@@ -4,16 +4,15 @@ CoinDCX is the *execution* venue: this client is the source of truth for the tra
 universe, contract specs, and CoinDCX-side price/book (used for execution checks and for
 symbols with no Binance listing). Account + order streams live with the broker (#7/#8).
 
-NOTE: CoinDCX's public futures API is thinly documented. Endpoint paths and payload keys
-below are marked VERIFY and must be checked against the live API before the first live run
-(tracked in issue #3 follow-up). Parsing is isolated in pure functions so a key rename is a
-one-line fix.
+Endpoints and payload keys were verified against the live API on 2026-11-21.
+Parsing is isolated in pure functions so a key rename is a one-line fix.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
@@ -27,13 +26,13 @@ from mats.feeds.symbols import canonical_to_coindcx, coindcx_to_canonical
 PUBLIC_BASE = "https://public.coindcx.com"
 API_BASE = "https://api.coindcx.com"
 
-# VERIFY against live API:
 EP_ACTIVE_INSTRUMENTS = "/exchange/v1/derivatives/futures/data/active_instruments"
 EP_INSTRUMENT = "/exchange/v1/derivatives/futures/data/instrument"
 EP_CANDLES = "/market_data/candlesticks"
 EP_ORDERBOOK = "/market_data/v3/orderbook"
 
-_RESOLUTION = {"1m": "1", "5m": "5", "15m": "15", "1h": "60"}
+_RESOLUTION = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240", "1d": "1D"}
+_INTERVAL_S = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
 
 
 def parse_candles(pair: str, interval: str, payload: dict | list) -> list[Candle]:
@@ -85,8 +84,9 @@ def parse_instrument(payload: dict) -> ContractSpec:
         coindcx_pair=pair,
         tick_size=float(d.get("price_increment", d.get("tick_size", 0.0)) or 0.0),
         step_size=float(d.get("quantity_increment", d.get("step_size", 0.0)) or 0.0),
-        min_quantity=float(d.get("min_quantity", 0.0) or 0.0),
-        max_leverage=float(d.get("max_leverage", 0.0) or 0.0),
+        min_quantity=float(d.get("min_quantity", d.get("min_trade_size", 0.0)) or 0.0),
+        # live payload has max_leverage_long/_short; older docs say max_leverage
+        max_leverage=float(d.get("max_leverage_long", d.get("max_leverage", 0.0)) or 0.0),
         maker_fee_pct=float(d.get("maker_fee", 0.0) or 0.0),
         taker_fee_pct=float(d.get("taker_fee", 0.0) or 0.0),
     )
@@ -114,17 +114,23 @@ class CoinDCXFeed:
         return parse_instrument(r.json())
 
     async def fetch_candles(self, pair: str, interval: str, limit: int = 100) -> list[Candle]:
+        # The endpoint ignores `limit` and returns 400 without a from/to window (seconds).
+        if interval not in _RESOLUTION:
+            raise ValueError(f"unsupported interval {interval!r}")
+        to = int(time.time())
         r = await self._http.get(
             f"{PUBLIC_BASE}{EP_CANDLES}",
             params={
                 "pair": pair,
-                "resolution": _RESOLUTION.get(interval, "1"),
+                "resolution": _RESOLUTION[interval],
                 "pcode": "f",
-                "limit": limit,
+                "from": to - _INTERVAL_S[interval] * limit,
+                "to": to,
             },
         )
         r.raise_for_status()
-        return parse_candles(pair, interval, r.json())
+        candles = sorted(parse_candles(pair, interval, r.json()), key=lambda c: c.open_time)
+        return candles[-limit:]
 
     async def fetch_orderbook(self, pair: str, depth: int = 50) -> OrderBook:
         r = await self._http.get(f"{PUBLIC_BASE}{EP_ORDERBOOK}/{pair}-futures/{depth}")

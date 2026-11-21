@@ -55,3 +55,19 @@ Trades happen **only on CoinDCX**. Everything else is just data.
 
 `.env`: `COINDCX_API_KEY` / `COINDCX_API_SECRET` (read scope for paper; trade scope only when
 going live). `MATS_INDICATOR_SOURCE=binance|bybit|okx` (default `binance`).
+
+## Connectivity from India (verified 2026-11-21)
+
+- **Binance futures is DNS-blocked on Jio**, not IP-blocked: `fapi.binance.com` resolves to a
+  sinkhole (49.44.x.x). `mats.net.dns.install()` resolves Binance hosts over DNS-over-HTTPS
+  (Cloudflare, then Google) by patching `socket.getaddrinfo`; TLS still verifies the real
+  hostname. `BinanceFuturesFeed` calls it by default (`doh=False` to opt out).
+- **Binance split its futures WebSockets**: `/public/stream` serves order-book depth;
+  `/market/stream` serves aggTrade, klines, mark price and `!forceOrder@arr`. The old root
+  `/stream` path only delivers depth. The feed opens both and merges them.
+- Measured: REST ~0.9 s for exchangeInfo, WS trade lag ~60 ms median.
+- **CoinDCX** endpoints verified live: instrument payload uses `max_leverage_long/_short` and
+  `min_trade_size`; candlesticks require a `from`/`to` window (seconds) and ignore `limit`.
+- **Gold**: Binance lists `XAUUSDT` (also `XAGUSDT`, `PAXGUSDT`, `XAUTUSDT`) as USDⓈ-M perps,
+  so gold runs on the same feed, 24/7, no extra broker.
+- Smoke test: `.venv/bin/python scripts/smoke_feeds.py`.
