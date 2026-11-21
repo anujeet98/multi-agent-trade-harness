@@ -26,14 +26,21 @@ from mats.core.models import (
     Side,
     Trade,
 )
+from mats.net import dns
 
 REST_BASE = "https://fapi.binance.com"
-WS_BASE = "wss://fstream.binance.com/stream"
+# Binance split USDⓈ-M WebSockets by category (verified live 2026-11-21): order-book
+# streams are served on /public, trades/klines/mark price/liquidations on /market. The old
+# root /stream path now only delivers depth, so subscribing everything there goes silent.
+WS_HOST = "wss://fstream.binance.com"
+WS_PUBLIC = f"{WS_HOST}/public/stream"
+WS_MARKET = f"{WS_HOST}/market/stream"
 
-# per-symbol streams we open for each watched candidate
-SYMBOL_STREAMS = ("aggTrade", "depth20@100ms", "kline_1m", "kline_5m", "markPrice@1s")
+# per-symbol streams we open for each watched candidate, by endpoint
+PUBLIC_SYMBOL_STREAMS = ("depth20@100ms",)
+MARKET_SYMBOL_STREAMS = ("aggTrade", "kline_1m", "kline_5m", "markPrice@1s")
 # market-wide streams opened once
-GLOBAL_STREAMS = ("!forceOrder@arr",)
+MARKET_GLOBAL_STREAMS = ("!forceOrder@arr",)
 
 
 def _ts(ms: float) -> datetime:
@@ -124,7 +131,12 @@ def parse_ws(envelope: dict) -> object | None:
 class BinanceFuturesFeed:
     source_name = "binance"
 
-    def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self, *, http: httpx.AsyncClient | None = None, doh: bool = True
+    ) -> None:
+        # Indian ISPs DNS-block Binance; resolve its hosts over DoH (see mats.net.dns).
+        if doh:
+            dns.install()
         self._http = http or httpx.AsyncClient(base_url=REST_BASE, timeout=10.0)
         self._onboard: dict[str, datetime] = {}  # symbol -> listing date (cached)
 
@@ -224,15 +236,20 @@ class BinanceFuturesFeed:
 
     # --- WebSocket ----------------------------------------------------------
 
-    def _stream_names(self, symbols: list[str]) -> list[str]:
-        names = list(GLOBAL_STREAMS)
-        for sym in symbols:
-            low = sym.lower()
-            names += [f"{low}@{s}" for s in SYMBOL_STREAMS]
-        return names
+    def stream_urls(self, symbols: list[str]) -> list[str]:
+        """Combined-stream URLs, one per Binance WS endpoint that has something to serve."""
+        lows = [sym.lower() for sym in symbols]
+        public = [f"{low}@{s}" for low in lows for s in PUBLIC_SYMBOL_STREAMS]
+        market = list(MARKET_GLOBAL_STREAMS) + [
+            f"{low}@{s}" for low in lows for s in MARKET_SYMBOL_STREAMS
+        ]
+        return [
+            f"{base}?streams={'/'.join(names)}"
+            for base, names in ((WS_PUBLIC, public), (WS_MARKET, market))
+            if names
+        ]
 
-    async def stream(self, symbols: list[str]) -> AsyncIterator[object]:
-        url = f"{WS_BASE}?streams={'/'.join(self._stream_names(symbols))}"
+    async def _pump(self, url: str, out: asyncio.Queue[object]) -> None:
         backoff = 1.0
         while True:
             try:
@@ -242,10 +259,21 @@ class BinanceFuturesFeed:
                         with contextlib.suppress(json.JSONDecodeError, KeyError, ValueError):
                             event = parse_ws(json.loads(raw))
                             if event is not None:
-                                yield event
+                                await out.put(event)
             except (OSError, websockets.WebSocketException):
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30.0)
+
+    async def stream(self, symbols: list[str]) -> AsyncIterator[object]:
+        queue: asyncio.Queue[object] = asyncio.Queue(maxsize=10_000)
+        tasks = [asyncio.create_task(self._pump(u, queue)) for u in self.stream_urls(symbols)]
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def aclose(self) -> None:
         await self._http.aclose()

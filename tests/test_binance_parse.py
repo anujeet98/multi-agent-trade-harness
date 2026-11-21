@@ -104,3 +104,14 @@ def test_parse_force_order_side() -> None:
 
 def test_unknown_stream_ignored() -> None:
     assert parse_ws(_env("btcusdt@somethingelse", {"e": "x"})) is None
+
+
+def test_stream_urls_route_depth_to_public_and_rest_to_market() -> None:
+    from mats.feeds.binance import WS_MARKET, WS_PUBLIC, BinanceFuturesFeed
+
+    urls = BinanceFuturesFeed(doh=False).stream_urls(["BTCUSDT"])
+    public = next(u for u in urls if u.startswith(WS_PUBLIC))
+    market = next(u for u in urls if u.startswith(WS_MARKET))
+    assert "btcusdt@depth20@100ms" in public and "aggTrade" not in public
+    assert "btcusdt@aggTrade" in market and "!forceOrder@arr" in market
+    assert "depth" not in market
